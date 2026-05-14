@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排序算法可视化演示 - 希尔排序</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/white.css">
+    <style>
+        :root {
+            --card-width: 44px;
+            --card-gap: 8px;
+            --color-default: #3b82f6;
+            --color-compare: #f59e0b;
+            --color-swap: #ef4444;
+            --color-sorted: #22c55e;
+            --color-pivot: #8b5cf6;
+            --color-gold: #fbbf24;
+            --color-insert: #ec4899;
+            /* 希尔排序专用色 */
+            --color-gap: #06b6d4;
+            --color-group: #a855f7;
+            --color-insert-special: #f97316;
+        }
+
+        .reveal {
+            font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+        }
+
+        .reveal h1, .reveal h2, .reveal h3 {
+            font-weight: 600;
+            color: #1f2937;
+            text-transform: none;
+        }
+
+        .reveal h1 { font-size: 2.2em; }
+        .reveal h2 { font-size: 1.5em; margin-bottom: 0.5em; }
+
+        .reveal .slides section {
+            padding: 16px 20px;
+        }
+
+        /* Cover */
+        .cover-slide h1 {
+            font-size: 2.4em;
+            color: #111827;
+            margin-bottom: 0.3em;
+        }
+        .cover-slide p {
+            font-size: 1.05em;
+            color: #6b7280;
+        }
+
+        /* Controls */
+        .algo-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .algo-controls input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 13px;
+            width: 200px;
+            outline: none;
+        }
+
+        .algo-controls button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            background: #2563eb;
+            color: #fff;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .algo-controls button:hover { background: #1d4ed8; }
+        .algo-controls button:active { transform: translateY(1px); }
+        .algo-controls button:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        .algo-controls .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        .algo-controls .btn-secondary:hover { background: #e5e7eb; }
+
+        /* Visualization container */
+        .viz-container {
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            height: 300px;
+            margin: 0 auto 12px;
+            padding: 10px 10px 26px 10px;
+            background: #f9fafb;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            max-width: 900px;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        /* Card wrapper */
+        .card-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            flex-shrink: 0;
+            width: var(--card-width);
+            margin-right: var(--card-gap);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 1;
+        }
+
+        .card {
+            width: var(--card-width);
+            border-radius: 6px;
+            background: linear-gradient(180deg, #60a5fa 0%, var(--color-default) 100%);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+            position: relative;
+        }
+
+        .card .val { font-size: 14px; line-height: 1; }
+
+        .card-index-overlay {
+            position: absolute;
+            bottom: 6px;
+            width: var(--card-width);
+            text-align: center;
+            font-size: 11px;
+            color: #9ca3af;
+            font-weight: 500;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* States */
+        .card-wrapper.focused .card {
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.8);
+            z-index: 100;
+        }
+
+        /* ========== 希尔排序专属动画 ========== */
+        .section.shell-viz .viz-container { padding-top: 30px; }
+
+        /* 间隔指示线 */
+        .gap-line-overlay {
+            position: absolute;
+            bottom: 30px;
+            height: calc(100% - 45px);
+            width: 2px;
+            background: repeating-linear-gradient(180deg, #06b6d4, #06b6d4 8px, transparent 8px, transparent 16px);
+            opacity: 0.6;
+            pointer-events: none;
+            z-index: 5;
+            transition: left 0.3s ease;
+        }
+
+        /* 当前组高亮背景 */
+        .group-highlight {
+            position: absolute;
+            bottom: 28px;
+            height: calc(100% - 48px);
+            background: rgba(168, 85, 247, 0.2);
+            border-radius: 8px;
+            border-left: 2px solid var(--color-group);
+            border-right: 2px solid var(--color-group);
+            transition: left 0.3s ease, width 0.3s ease;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 待插入元素 (key) 飞升效果 */
+        .shell-viz .card-wrapper.key-picked .card {
+            transform: translateY(-35px);
+            background: linear-gradient(180deg, #f97316 0%, var(--color-insert-special) 100%);
+            box-shadow: 0 12px 24px rgba(249, 115, 22, 0.4);
+            z-index: 150;
+        }
+
+        /* 比较中的卡片 */
+        .shell-viz .card-wrapper.comparing .card {
+            background: linear-gradient(180deg, #fbbf24 0%, var(--color-compare) 100%);
+            animation: compare-pop 0.4s ease-out forwards;
+        }
+
+        /* 移动/后移卡片效果 */
+        .shell-viz .card-wrapper.shifting .card {
+            background: linear-gradient(180deg, #fcd34d 0%, #f59e0b 100%);
+            transform: translateX(calc(var(--shift-dist, 0px))) scale(1.02);
+            transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+
+        /* 插入落位动画 */
+        .shell-viz .card-wrapper.insert-drop .card {
+            animation: drop-in-shell 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        /* 已排序区域标记（每轮部分有序） */
+        .shell-viz .card-wrapper.sorted-shell .card {
+            background: linear-gradient(180deg, #86efac 0%, var(--color-sorted) 100%);
+            opacity: 0.85;
+        }
+
+        @keyframes compare-pop {
+            0% { transform: translateY(0) scale(1); }
+            60% { transform: translateY(-12px) scale(1.15); }
+            100% { transform: translateY(-8px) scale(1.1); }
+        }
+
+        @keyframes drop-in-shell {
+            0% { transform: translateY(-35px); opacity: 0.7; }
+            60% { transform: translateY(4px); }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        /* 间隔标签 */
+        .gap-badge {
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            background: #06b6d4;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            z-index: 20;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+
+        .info-panel {
+            max-width: 800px;
+            margin: 0 auto 10px;
+            padding: 10px 14px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            text-align: center;
+            min-height: 40px;
+        }
+        .step-desc { font-size: 15px; color: #111827; margin-bottom: 3px; }
+        .step-counter { font-size: 12px; color: #6b7280; }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .legend-dot { width: 11px; height: 11px; border-radius: 2px; }
+
+        .playback {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .playback button { padding: 8px 16px; border-radius: 8px; font-size: 13px; }
+
+        @media (max-width: 768px) {
+            :root { --card-width: 32px; --card-gap: 4px; }
+            .viz-container { height: 220px; }
+            .reveal h2 { font-size: 1.2em; }
+            .algo-controls input[type="text"] { width: 150px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            <!-- Cover -->
+            <section class="cover-slide">
+                <h1>排序算法可视化演示</h1>
+                <p>交互式演示冒泡、选择、插入、快速排序 —— 新增希尔排序 (Shell Sort)</p>
+                <p style="margin-top: 40px; font-size: 0.9em; color: #9ca3af;">按 → 键或点击右下角箭头开始</p>
+            </section>
+
+            <!-- 希尔排序 (Shell Sort) 独立幻灯片 -->
+            <section class="section shell-viz">
+                <h2>希尔排序 (Shell Sort)</h2>
+                <div class="algo-controls">
+                    <input type="text" class="array-input" placeholder="输入数字，如：9,8,3,7,5,6,4,1" value="9,8,3,7,5,6,4,1">
+                    <button class="btn-generate">生成数组</button>
+                    <button class="btn-reset btn-secondary">重置</button>
+                </div>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--color-default)"></span>默认</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--color-compare)"></span>比较中</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--color-insert-special)"></span>待插入元素</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#06b6d4;"></span>间隔分组</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--color-group)"></span>当前组高亮</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--color-sorted)"></span>已部分有序</span>
+                </div>
+                <div class="viz-container" id="viz-shell"></div>
+                <div class="info-panel">
+                    <div class="step-desc" id="desc-shell">请点击“生成数组”开始</div>
+                    <div class="step-counter" id="counter-shell">- / -</div>
+                </div>
+                <div class="playback">
+                    <button class="btn-prev">上一步</button>
+                    <button class="btn-play">自动播放</button>
+                    <button class="btn-next">下一步</button>
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: 'c/t',
+            transition: 'slide',
+            width: 1100,
+            height: 720,
+            margin: 0.06
+        });
+
+        // ======================== 通用工具 ========================
+        function parseInput(str) {
+            return str.split(/[,，\s]+/)
+                .map(s => s.trim())
+                .filter(s => s !== '')
+                .map(Number)
+                .filter(n => !isNaN(n));
+        }
+
+        function clampArray(arr, maxLen = 20) {
+            return arr.slice(0, maxLen);
+        }
+
+        function deepCopy(arr) {
+            return arr.map(item => ({ ...item }));
+        }
+
+        function createSnapshot(array, description, focus = [], animation = '', extras = {}) {
+            return {
+                array: deepCopy(array),
+                desc: description,
+                focus: focus,
+                animation: animation,
+                extras: extras
+            };
+        }
+
+        // ======================== 希尔排序 步骤生成器 (核心) ========================
+        // 使用希尔增量序列: floor(n/2), floor(n/4), ... 1
+        function generateShellSteps(arr) {
+            const steps = [];
+            const n = arr.length;
+            if (n === 0) return [createSnapshot([], "空数组")];
+            
+            // 初始化数组对象，每个元素包含 value, state, id
+            let array = arr.map((v, idx) => ({ value: v, state: 'default', id: idx }));
+            steps.push(createSnapshot(array, `初始数组: [${arr.join(', ')}]`));
+            if (n <= 1) {
+                array.forEach(x => x.state = 'sorted-shell');
+                steps.push(createSnapshot(array, `排序完成！`));
+                return steps;
+            }
+
+            // 生成希尔增量序列 (每次除以2向下取整)
+            let gaps = [];
+            let gap = Math.floor(n / 2);
+            while (gap > 0) {
+                gaps.push(gap);
+                gap = Math.floor(gap / 2);
+            }
+
+            for (let gIdx = 0; gIdx < gaps.length; gIdx++) {
+                const currentGap = gaps[gIdx];
+                // 标记当前间隔
+                steps.push(createSnapshot(array, `当前间隔 gap = ${currentGap}，将数组分为 ${currentGap} 个组分别进行插入排序`, 
+                    [], '', { gap: currentGap, gapPhase: true }));
+
+                // 对于每个组，起始位置 0 .. gap-1
+                for (let start = 0; start < currentGap; start++) {
+                    // 对这一组进行插入排序 (组内元素索引: start, start+gap, start+2*gap ...)
+                    const groupIndices = [];
+                    for (let idx = start; idx < n; idx += currentGap) {
+                        groupIndices.push(idx);
+                    }
+                    if (groupIndices.length <= 1) continue;
+
+                    // 显示当前组高亮
+                    const groupStartIdx = groupIndices[0];
+                    const groupEndIdx = groupIndices[groupIndices.length-1];
+                    steps.push(createSnapshot(array, `处理 gap=${currentGap} 组，起始索引 ${start} : [${groupIndices.map(i => array[i].value).join(', ')}]`,
+                        [], '', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx, highlightGroup: true }));
+
+                    // 对该组执行插入排序 (从组内第二个元素开始)
+                    for (let k = 1; k < groupIndices.length; k++) {
+                        const currentPos = groupIndices[k];
+                        const keyVal = array[currentPos].value;
+                        const keyId = array[currentPos].id;
+                        
+                        // 标记当前待插入元素 (key)
+                        array[currentPos] = { value: keyVal, state: 'key-picked', id: keyId };
+                        steps.push(createSnapshot(array, `取出待插入元素 key = ${keyVal} (组内索引位置 ${currentPos})`,
+                            [currentPos], '', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx, keyPos: currentPos }));
+
+                        let j = k - 1;
+                        let comparePos = groupIndices[j];
+                        // 向前比较并移动
+                        while (j >= 0 && array[comparePos].value > keyVal) {
+                            // 比较步骤
+                            steps.push(createSnapshot(array, `比较 key=${keyVal} 与 arr[${comparePos}]=${array[comparePos].value}`,
+                                [comparePos, currentPos], 'compare', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx, keyPos: currentPos, compareIdx: comparePos }));
+                            
+                            // 后移元素 (将comparePos位置的元素移到当前空位)
+                            const targetPos = groupIndices[j+1];
+                            // 执行移动: 将 comparePos 的值复制到 targetPos
+                            array[targetPos] = { value: array[comparePos].value, state: 'shifting', id: array[comparePos].id };
+                            // 原比较位暂时标记为待定(之后会覆盖)
+                            steps.push(createSnapshot(array, `将 arr[${comparePos}] = ${array[comparePos].value} 后移至 arr[${targetPos}]`,
+                                [comparePos, targetPos], 'shift', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx, keyPos: targetPos, shiftFrom: comparePos, shiftTo: targetPos }));
+                            
+                            // 更新实际数组：把 comparePos 的值搬到 targetPos
+                            array[targetPos] = { value: array[comparePos].value, state: 'default', id: array[comparePos].id };
+                            // 清空原比较位状态，准备下次循环
+                            array[comparePos] = { value: keyVal, state: 'key-picked', id: keyId };
+                            
+                            j--;
+                            if (j >= 0) comparePos = groupIndices[j];
+                        }
+                        
+                        // 最终插入位置
+                        const insertPos = (j >= 0) ? groupIndices[j+1] : groupIndices[0];
+                        // 将 key 放入正确位置
+                        array[insertPos] = { value: keyVal, state: 'insert-drop', id: keyId };
+                        steps.push(createSnapshot(array, `将 ${keyVal} 插入到 arr[${insertPos}]`,
+                            [insertPos], 'drop', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx, insertPos: insertPos }));
+                        
+                        // 插入后恢复默认状态，并将组内目前已经有序的部分标记为部分已排序（为了视觉效果）
+                        for (let t = 0; t <= k; t++) {
+                            const pos = groupIndices[t];
+                            if (array[pos].state !== 'sorted-shell') array[pos].state = 'sorted-shell';
+                        }
+                        array[insertPos].state = 'sorted-shell';
+                        steps.push(createSnapshot(array, `组内元素 [${groupIndices.slice(0, k+1).map(i => array[i].value).join(', ')}] 已局部有序`,
+                            [insertPos], '', { gap: currentGap, groupStart: groupStartIdx, groupEnd: groupEndIdx }));
+                    }
+                    // 当前组全部有序后高亮依然保留，但状态可保留sorted
+                    steps.push(createSnapshot(array, `gap=${currentGap} 下起始索引 ${start} 组排序完成`,
+                        [], '', { gap: currentGap, groupComplete: true }));
+                }
+
+                // 当前间隔的所有组处理完后，清理组高亮并显示进度
+                steps.push(createSnapshot(array, `gap=${currentGap} 排序完成，数组全局更有序`, 
+                    [], '', { gap: currentGap, gapDone: true }));
+            }
+
+            // 最终所有元素标记为完全排序
+            array.forEach(x => x.state = 'sorted-shell');
+            steps.push(createSnapshot(array, `🎉 希尔排序完成！数组已完全有序`, [], '', { final: true }));
+            return steps;
+        }
+
+        // ======================== UI Controller (适配希尔排序) ========================
+        class Visualizer {
+            constructor(type, containerId, descId, counterId, generatorFn) {
+                this.type = type;
+                this.container = document.getElementById(containerId);
+                this.descEl = document.getElementById(descId);
+                this.counterEl = document.getElementById(counterId);
+                this.generatorFn = generatorFn;
+                this.steps = [];
+                this.currentIndex = -1;
+                this.playing = false;
+                this.timer = null;
+                this.baseArray = [];
+
+                const section = this.container.closest('section');
+                this.inputEl = section.querySelector('.array-input');
+                this.btnGenerate = section.querySelector('.btn-generate');
+                this.btnReset = section.querySelector('.btn-reset');
+                this.btnPrev = section.querySelector('.btn-prev');
+                this.btnNext = section.querySelector('.btn-next');
+                this.btnPlay = section.querySelector('.btn-play');
+
+                this.bindEvents();
+            }
+
+            bindEvents() {
+                this.btnGenerate.addEventListener('click', () => this.generate());
+                this.btnReset.addEventListener('click', () => this.reset());
+                this.btnPrev.addEventListener('click', () => this.prev());
+                this.btnNext.addEventListener('click', () => this.next());
+                this.btnPlay.addEventListener('click', () => this.togglePlay());
+            }
+
+            generate() {
+                this.pause();
+                let raw = parseInput(this.inputEl.value);
+                if (raw.length === 0) {
+                    this.descEl.textContent = '请输入有效的数字数组';
+                    return;
+                }
+                raw = clampArray(raw, 20);
+                if (raw.some(v => v < 0)) {
+                    this.descEl.textContent = '请输入非负数';
+                    return;
+                }
+                this.baseArray = [...raw];
+                this.steps = this.generatorFn(raw);
+                this.currentIndex = -1;
+                this.renderEmpty();
+                this.updateInfo();
+            }
+
+            reset() {
+                this.pause();
+                if (this.baseArray.length === 0) {
+                    this.generate();
+                    return;
+                }
+                this.steps = this.generatorFn(this.baseArray);
+                this.currentIndex = -1;
+                this.renderEmpty();
+                this.updateInfo();
+            }
+
+            createCardWrapper(id, val) {
+                const wrap = document.createElement('div');
+                wrap.className = 'card-wrapper';
+                wrap.dataset.id = id;
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                const maxVal = Math.max(...this.baseArray, 1);
+                const unitH = 200 / maxVal;
+                const h = Math.max(28, Math.round(val * unitH));
+                card.style.height = `${h}px`;
+
+                const valSpan = document.createElement('span');
+                valSpan.className = 'val';
+                valSpan.textContent = val;
+                card.appendChild(valSpan);
+                wrap.appendChild(card);
+                return wrap;
+            }
+
+            renderEmpty() {
+                this.container.innerHTML = '';
+                this.baseArray.forEach((val, idx) => {
+                    this.container.appendChild(this.createCardWrapper(idx, val));
+                });
+                this.updateIndexOverlay();
+            }
+
+            updateIndexOverlay() {
+                const cardWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-width')) || 44;
+                const cardGap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-gap')) || 8;
+                const stepSize = cardWidth + cardGap;
+                const wrappers = Array.from(this.container.querySelectorAll('.card-wrapper'));
+                const baseOffset = wrappers[0] ? wrappers[0].offsetLeft : 0;
+                this.container.querySelectorAll('.card-index-overlay').forEach(el => el.remove());
+                this.baseArray.forEach((_, idx) => {
+                    const idxDiv = document.createElement('div');
+                    idxDiv.className = 'card-index-overlay';
+                    idxDiv.textContent = idx;
+                    idxDiv.style.left = `${baseOffset + idx * stepSize}px`;
+                    this.container.appendChild(idxDiv);
+                });
+            }
+
+            renderStep(index) {
+                if (index < 0 || index >= this.steps.length) return;
+                const step = this.steps[index];
+                const maxVal = Math.max(...this.baseArray, 1);
+                const unitH = 200 / maxVal;
+                const cardWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-width')) || 44;
+                const cardGap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-gap')) || 8;
+                const stepSize = cardWidth + cardGap;
+
+                let wrappers = Array.from(this.container.querySelectorAll('.card-wrapper'));
+                const wrapperById = new Map();
+                wrappers.forEach(w => wrapperById.set(Number(w.dataset.id), w));
+
+                // 确保所有卡片存在
+                step.array.forEach(item => {
+                    if (!wrapperById.has(item.id)) {
+                        const wrap = this.createCardWrapper(item.id, item.value);
+                        wrapperById.set(item.id, wrap);
+                        this.container.appendChild(wrap);
+                    }
+                });
+
+                // 重置所有样式类及内联样式
+                wrapperById.forEach(w => {
+                    w.className = 'card-wrapper';
+                    w.style.transform = '';
+                    w.style.zIndex = '';
+                    const card = w.querySelector('.card');
+                    if (card) card.style.removeProperty('--shift-dist');
+                });
+
+                // 清理额外叠加层
+                this.container.querySelectorAll('.gap-line-overlay, .group-highlight, .gap-badge, .card-index-overlay').forEach(el => el.remove());
+
+                wrappers = Array.from(this.container.querySelectorAll('.card-wrapper'));
+                const baseOffset = wrappers[0] ? wrappers[0].offsetLeft : 0;
+
+                // 重新定位每个卡片 (根据pos)
+                step.array.forEach((item, posIndex) => {
+                    const w = wrapperById.get(item.id);
+                    if (!w) return;
+                    const dx = (posIndex - item.id) * stepSize;
+                    w.style.transform = `translateX(${dx}px)`;
+                    
+                    // 恢复状态类
+                    if (item.state && item.state !== 'default') {
+                        w.classList.add(item.state);
+                    } else if (!item.state || item.state === 'default') {
+                        // 保持默认
+                    }
+                    const card = w.querySelector('.card');
+                    const h = Math.max(28, Math.round(item.value * unitH));
+                    card.style.height = `${h}px`;
+                    card.querySelector('.val').textContent = item.value;
+                    
+                    if (step.focus && step.focus.includes(posIndex)) {
+                        w.classList.add('focused');
+                        w.style.zIndex = '100';
+                    }
+                });
+
+                // 处理动画
+                if (step.animation) {
+                    const applyAnimToPos = (posIdx, animClass) => {
+                        const targetItem = step.array[posIdx];
+                        if (!targetItem) return;
+                        const w = wrapperById.get(targetItem.id);
+                        if (w) w.classList.add(animClass);
+                    };
+                    if (step.animation === 'compare') {
+                        step.focus.forEach(idx => applyAnimToPos(idx, 'comparing'));
+                    } else if (step.animation === 'shift') {
+                        if (step.extras && step.extras.shiftFrom !== undefined && step.extras.shiftTo !== undefined) {
+                            applyAnimToPos(step.extras.shiftFrom, 'shifting');
+                            applyAnimToPos(step.extras.shiftTo, 'shifting');
+                        } else if (step.focus.length >= 2) {
+                            step.focus.forEach(idx => applyAnimToPos(idx, 'shifting'));
+                        }
+                    } else if (step.animation === 'drop') {
+                        step.focus.forEach(idx => applyAnimToPos(idx, 'insert-drop'));
+                    }
+                }
+
+                // 显示间隔背景与组高亮
+                if (step.extras) {
+                    if (step.extras.gap !== undefined && (step.extras.gapPhase || step.extras.gap !== undefined)) {
+                        // 添加间隔标记
+                        const gapBadge = document.createElement('div');
+                        gapBadge.className = 'gap-badge';
+                        gapBadge.textContent = `gap = ${step.extras.gap}`;
+                        this.container.appendChild(gapBadge);
+                    }
+                    if (step.extras.highlightGroup && step.extras.groupStart !== undefined && step.extras.groupEnd !== undefined) {
+                        const groupStartPos = step.extras.groupStart;
+                        const groupEndPos = step.extras.groupEnd;
+                        const leftPos = baseOffset + groupStartPos * stepSize - 4;
+                        const width = (groupEndPos - groupStartPos + 1) * stepSize + 4;
+                        const groupDiv = document.createElement('div');
+                        groupDiv.className = 'group-highlight';
+                        groupDiv.style.left = `${leftPos}px`;
+                        groupDiv.style.width = `${width}px`;
+                        this.container.appendChild(groupDiv);
+                    }
+                    // 显示间隔指示线（可选美观效果）
+                    if (step.extras.gap && step.extras.gap > 0 && step.extras.gap < this.baseArray.length) {
+                        for (let startPos = 0; startPos < step.extras.gap; startPos++) {
+                            const lineLeft = baseOffset + startPos * stepSize + cardWidth/2;
+                            const line = document.createElement('div');
+                            line.className = 'gap-line-overlay';
+                            line.style.left = `${lineLeft}px`;
+                            this.container.appendChild(line);
+                        }
+                    }
+                }
+
+                this.updateIndexOverlay();
+                this.descEl.textContent = step.desc;
+                this.counterEl.textContent = `步骤 ${index + 1} / ${this.steps.length}`;
+            }
+
+            updateInfo() {
+                if (this.currentIndex === -1) {
+                    this.descEl.textContent = '请点击“下一步”开始演示';
+                    this.counterEl.textContent = `- / ${this.steps.length}`;
+                } else {
+                    this.renderStep(this.currentIndex);
+                }
+            }
+
+            next() {
+                if (this.steps.length === 0) {
+                    this.generate();
+                    return;
+                }
+                if (this.currentIndex < this.steps.length - 1) {
+                    this.currentIndex++;
+                    this.renderStep(this.currentIndex);
+                } else {
+                    this.pause();
+                }
+            }
+
+            prev() {
+                if (this.steps.length === 0) return;
+                if (this.currentIndex >= 0) {
+                    this.currentIndex--;
+                    if (this.currentIndex === -1) {
+                        this.renderEmpty();
+                        this.updateInfo();
+                    } else {
+                        this.renderStep(this.currentIndex);
+                    }
+                }
+            }
+
+            togglePlay() {
+                if (this.playing) {
+                    this.pause();
+                } else {
+                    this.play();
+                }
+            }
+
+            play() {
+                if (this.steps.length === 0) {
+                    this.generate();
+                    return;
+                }
+                this.playing = true;
+                this.btnPlay.textContent = '暂停';
+                if (this.currentIndex >= this.steps.length - 1) {
+                    this.currentIndex = -1;
+                }
+                this.timer = setInterval(() => {
+                    if (this.currentIndex < this.steps.length - 1) {
+                        this.currentIndex++;
+                        this.renderStep(this.currentIndex);
+                    } else {
+                        this.pause();
+                    }
+                }, 1100);
+            }
+
+            pause() {
+                this.playing = false;
+                this.btnPlay.textContent = '自动播放';
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+            }
+        }
+
+        // ======================== 初始化希尔排序演示 ========================
+        document.addEventListener('DOMContentLoaded', () => {
+            window.shellVisualizer = new Visualizer('shell', 'viz-shell', 'desc-shell', 'counter-shell', generateShellSteps);
+            Reveal.on('slidechanged', (event) => {
+                if (window.shellVisualizer) window.shellVisualizer.pause();
+            });
+        });
+    </script>
+</body>
+</html>
